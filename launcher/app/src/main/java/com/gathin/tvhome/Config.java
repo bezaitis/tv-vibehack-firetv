@@ -30,6 +30,10 @@ final class Config {
     private static final String TAG = "TvHome.Config";
     static final String FILE_NAME = "config.json";
     static final String WALLPAPER_NAME = "wallpaper.jpg";
+    /** A slideshow: wallpaper-1.jpg, wallpaper-2.jpg, ... in number order (at most MAX_WALLPAPERS). */
+    static final java.util.regex.Pattern WALLPAPER_SERIES = java.util.regex.Pattern.compile("wallpaper-(\\d{1,2})\\.jpg");
+    static final int MAX_WALLPAPERS = 30;
+    static final int DEFAULT_WALLPAPER_SECONDS = 30;
 
     final List<String> dockApps;
     final List<String> hiddenApps;
@@ -48,8 +52,10 @@ final class Config {
     final boolean showHomeSettingsShortcut;
     /** Background colour behind everything, #RRGGBB; black unless a theme says otherwise. */
     final int backgroundColor;
-    /** Full-screen picture behind the launcher, or null for the plain colour. */
-    final File wallpaper;
+    /** Full-screen pictures behind the launcher: none for the plain colour, one, or a slideshow. */
+    final List<File> wallpapers;
+    /** Seconds each slideshow picture stays up (theme key wallpaper_seconds, 5 to 3600). */
+    final int wallpaperSeconds;
     /** Whether the overlay file was present and parsed. */
     final boolean overlayApplied;
 
@@ -58,7 +64,7 @@ final class Config {
                    int columns, int rowsBelowDock,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
                    boolean showHomeSettingsShortcut, int backgroundColor,
-                   File wallpaper, boolean overlayApplied) {
+                   List<File> wallpapers, int wallpaperSeconds, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
         this.liveTvPackage = liveTvPackage;
@@ -74,7 +80,8 @@ final class Config {
         this.vpnApp = vpnApp;
         this.showHomeSettingsShortcut = showHomeSettingsShortcut;
         this.backgroundColor = backgroundColor;
-        this.wallpaper = wallpaper;
+        this.wallpapers = Collections.unmodifiableList(wallpapers);
+        this.wallpaperSeconds = wallpaperSeconds;
         this.overlayApplied = overlayApplied;
     }
 
@@ -100,6 +107,7 @@ final class Config {
         String vpn = res.getString(R.string.vpn_app).trim();
         boolean homeSettings = res.getBoolean(R.bool.show_home_settings_shortcut);
         int background = 0xFF000000;
+        int wallpaperSeconds = DEFAULT_WALLPAPER_SECONDS;
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -122,15 +130,41 @@ final class Config {
             vpn = string(json, "vpn_app", vpn);
             homeSettings = bool(json, "show_home_settings_shortcut", homeSettings);
             background = color(json, "background_color", background);
+            wallpaperSeconds = integer(json, "wallpaper_seconds", wallpaperSeconds, 5, 3600);
         }
-        File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
-        if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
-        // A theme can also switch the wallpaper off while the file is still there.
-        if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
+        List<File> wallpapers = wallpaperFiles(dir);
+        // A theme can also switch the wallpaper off while the files are still there.
+        if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpapers = new ArrayList<>();
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), shamsi, moduleCards, reducedMotion,
-                vpn, homeSettings, background, wallpaper, applied);
+                vpn, homeSettings, background, wallpapers, wallpaperSeconds, applied);
+    }
+
+    /** wallpaper-N.jpg files in number order if there are any, otherwise wallpaper.jpg on its own. */
+    static List<File> wallpaperFiles(File dir) {
+        List<File> found = new ArrayList<>();
+        if (dir == null) return found;
+        File[] files = dir.listFiles();
+        if (files != null) {
+            List<int[]> numbered = new ArrayList<>();   // {number, index into files}
+            for (int i = 0; i < files.length; i++) {
+                java.util.regex.Matcher m = WALLPAPER_SERIES.matcher(files[i].getName());
+                if (m.matches() && files[i].isFile() && files[i].length() > 0) {
+                    numbered.add(new int[]{Integer.parseInt(m.group(1)), i});
+                }
+            }
+            Collections.sort(numbered, (a, b) -> Integer.compare(a[0], b[0]));
+            for (int[] n : numbered) {
+                if (found.size() == MAX_WALLPAPERS) break;
+                found.add(files[n[1]]);
+            }
+        }
+        if (found.isEmpty()) {
+            File single = new File(dir, WALLPAPER_NAME);
+            if (single.isFile() && single.length() > 0) found.add(single);
+        }
+        return found;
     }
 
     /** Reads and parses the overlay; any problem means "no overlay", never a crash on the home screen. */

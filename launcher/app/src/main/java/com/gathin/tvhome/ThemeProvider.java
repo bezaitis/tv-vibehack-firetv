@@ -14,17 +14,18 @@ import java.io.FileNotFoundException;
  * /sdcard/Android/data (Fire OS 8). Used by fire/theme.sh:
  *
  *   content write --uri content://com.gathin.tvhome.theme/config.json < /data/local/tmp/config.json
- *   content delete --uri content://com.gathin.tvhome.theme/wallpaper.jpg
+ *   content write --uri content://com.gathin.tvhome.theme/wallpaper-3.jpg < /data/local/tmp/wallpaper-3.jpg
+ *   content delete --uri content://com.gathin.tvhome.theme/wallpapers        (every wallpaper*.jpg)
  *
- * Only the two theme files can be written or deleted, and both read and write need WRITE_SECURE_SETTINGS, which
+ * Only theme files (config.json, wallpaper.jpg, wallpaper-N.jpg) can be written or deleted, and both read and write need WRITE_SECURE_SETTINGS, which
  * the adb shell holds and ordinary apps cannot get, so no other app on the TV can change the theme.
  */
 public class ThemeProvider extends ContentProvider {
 
     private File target(Uri uri) throws FileNotFoundException {
         String name = uri.getLastPathSegment();
-        if (!Config.FILE_NAME.equals(name) && !Config.WALLPAPER_NAME.equals(name)) {
-            throw new FileNotFoundException("only " + Config.FILE_NAME + " and " + Config.WALLPAPER_NAME);
+        if (!isThemeFile(name)) {
+            throw new FileNotFoundException("only " + Config.FILE_NAME + ", " + Config.WALLPAPER_NAME + " and wallpaper-N.jpg");
         }
         File dir = getContext().getExternalFilesDir(null);
         if (dir == null) throw new FileNotFoundException("no external files directory");
@@ -41,8 +42,25 @@ public class ThemeProvider extends ContentProvider {
         return ParcelFileDescriptor.open(file, flags);
     }
 
+    private static boolean isThemeFile(String name) {
+        return name != null && (Config.FILE_NAME.equals(name) || Config.WALLPAPER_NAME.equals(name)
+                || Config.WALLPAPER_SERIES.matcher(name).matches());
+    }
+
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
+        if ("wallpapers".equals(uri.getLastPathSegment())) {
+            File dir = getContext().getExternalFilesDir(null);
+            File[] files = dir != null ? dir.listFiles() : null;
+            int n = 0;
+            if (files != null) {
+                for (File f : files) {
+                    String name = f.getName();
+                    if ((Config.WALLPAPER_NAME.equals(name) || Config.WALLPAPER_SERIES.matcher(name).matches()) && f.delete()) n++;
+                }
+            }
+            return n;
+        }
         try {
             File file = target(uri);
             return file.exists() && file.delete() ? 1 : 0;

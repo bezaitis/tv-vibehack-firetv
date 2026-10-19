@@ -15,3 +15,5 @@ fire/*.apk
 
 # Personal wallpaper for the insignia theme: delivered privately, never committed
 themes/insignia/wallpaper.jpg
+# Personal photos for theme slideshows: never committed
+themes/*/photos/

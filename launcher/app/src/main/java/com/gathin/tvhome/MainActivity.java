@@ -196,7 +196,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         root = findViewById(R.id.root);
         root.setBackgroundColor(cfg.backgroundColor);
-        if (cfg.wallpaper != null) showWallpaper(cfg.wallpaper);
+        setupWallpapers(cfg.wallpapers, cfg.wallpaperSeconds);
         glass = findViewById(R.id.glass);
         ambient = findViewById(R.id.ambient);
         heroName = findViewById(R.id.heroName);
@@ -336,11 +336,91 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
+    /** Wallpaper layers: the bottom one shows the current picture, the top one fades the next one in. */
+    private ImageView wallBottom, wallTop;
+    private List<java.io.File> wallFiles = new ArrayList<>();
+    private int wallIndex;
+    private long wallMs;
+    private boolean wallRunning, wallLoading;
+    private final Runnable wallTick = this::nextWallpaper;
+
     /**
-     * A theme's full-screen picture behind everything. Decoded once, downsampled to the screen so a 4K
-     * JPEG costs a 1080p bitmap at most (about 8 MB), which is the price of a wallpaper on a 1 GB TV.
+     * A theme's full-screen pictures behind everything: one stays put, several make a slideshow that crossfades
+     * every wallpaper_seconds while Home is in front (it stops whenever an app is open).
      */
-    private void showWallpaper(File file) {
+    private void setupWallpapers(List<java.io.File> files, int seconds) {
+        wallFiles = new ArrayList<>(files);
+        wallMs = seconds * 1000L;
+        Bitmap first = null;
+        while (!wallFiles.isEmpty() && (first = decodeWallpaper(wallFiles.get(0))) == null) wallFiles.remove(0);
+        if (first == null) return;
+        wallIndex = 0;
+        wallBottom = newWallLayer();
+        wallBottom.setImageBitmap(first);
+        root.addView(wallBottom, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (wallFiles.size() > 1) {
+            wallTop = newWallLayer();
+            wallTop.setAlpha(0f);
+            root.addView(wallTop, 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+    }
+
+    private ImageView newWallLayer() {
+        ImageView v = new ImageView(this);
+        v.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        v.setFocusable(false);
+        return v;
+    }
+
+    private void startWallpapers() {
+        if (wallTop == null || wallRunning) return;
+        wallRunning = true;
+        handler.postDelayed(wallTick, wallMs);
+    }
+
+    private void stopWallpapers() {
+        wallRunning = false;
+        handler.removeCallbacks(wallTick);
+    }
+
+    /** Decodes the next picture off the main thread, then crossfades to it and schedules the one after. */
+    private void nextWallpaper() {
+        if (!wallRunning || wallLoading || wallTop == null) return;
+        wallLoading = true;
+        final int next = (wallIndex + 1) % wallFiles.size();
+        final java.io.File file = wallFiles.get(next);
+        new Thread(() -> {
+            final Bitmap bmp = decodeWallpaper(file);
+            handler.post(() -> {
+                wallLoading = false;
+                if (isFinishing() || isDestroyed()) return;
+                wallIndex = next;   // a picture that fails to decode is skipped
+                if (bmp != null) showNextWallpaper(bmp);
+                if (wallRunning) handler.postDelayed(wallTick, wallMs);
+            });
+        }, "wallpaper").start();
+    }
+
+    private void showNextWallpaper(Bitmap bmp) {
+        if (reducedMotion) {
+            wallBottom.setImageBitmap(bmp);
+            return;
+        }
+        wallTop.animate().cancel();
+        wallTop.setImageBitmap(bmp);
+        wallTop.setAlpha(0f);
+        wallTop.animate().alpha(1f).setDuration(1500).withEndAction(() -> {
+            wallBottom.setImageBitmap(bmp);
+            wallTop.setAlpha(0f);
+            wallTop.setImageDrawable(null);
+        }).start();
+    }
+
+    /**
+     * Decoded downsampled to the screen so a 4K JPEG costs a 1080p bitmap at most (about 4 MB in RGB_565). A
+     * slideshow holds two at a time. A bad or huge picture returns null and never takes the home screen down.
+     */
+    private Bitmap decodeWallpaper(java.io.File file) {
         try {
             android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
             android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
@@ -350,15 +430,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             while (opts.outWidth / (sample * 2) >= dm.widthPixels && opts.outHeight / (sample * 2) >= dm.heightPixels) sample *= 2;
             opts.inJustDecodeBounds = false;
             opts.inSampleSize = sample;
-            opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;   // no alpha needed, half the memory
-            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(file.getPath(), opts);
-            if (bmp == null) return;
-            android.widget.ImageView wall = new android.widget.ImageView(this);
-            wall.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            wall.setImageBitmap(bmp);
-            root.addView(wall, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            opts.inPreferredConfig = Bitmap.Config.RGB_565;   // no alpha needed, half the memory
+            return android.graphics.BitmapFactory.decodeFile(file.getPath(), opts);
         } catch (Exception | OutOfMemoryError e) {
-            // A bad or huge picture must never take the home screen down; the plain colour stays.
+            return null;
         }
     }
 
@@ -391,6 +466,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateWifiLabel();
         updateInputsButton();
         handler.postDelayed(minuteTick, MINUTE_MS);
+        startWallpapers();
     }
 
     /** Rebuilds the tiles (and the module cards), then puts focus back where it was. */
@@ -460,6 +536,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onPause();
         unregisterReceiver(packageReceiver);
         handler.removeCallbacks(minuteTick);
+        stopWallpapers();
         // Nothing of ours stays on screen over another app; an undecided prompt simply returns next time.
         if (cardPrompt != null) cardPrompt.dismiss();
         if (openPopup != null) openPopup.dismiss();

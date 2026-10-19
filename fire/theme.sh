@@ -5,6 +5,13 @@
 #
 # Usage: TV_HOST=192.168.1.50 fire/theme.sh themes/insignia
 #        TV_HOST=192.168.1.50 fire/theme.sh --reset      # back to the built-in look
+#
+# Wallpaper, in order of preference:
+#   <theme>/photos/      a folder of photos becomes a slideshow: each is cropped to the TV, dimmed and resized
+#                        here first (photos are never committed: themes/*/photos/ is in .gitignore).
+#                        BRIGHTNESS=0.8 makes them brighter (0.2 to 1.0, default 0.62).
+#                        config.json "wallpaper_seconds" sets how long each stays up (5 to 3600, default 30).
+#   <theme>/wallpaper.jpg one picture, sent as it is (1920x1080, dark, under 300 KB)
 source "$(dirname "$0")/common.sh"
 URI=content://com.gathin.tvhome.theme
 TMP=/data/local/tmp
@@ -12,7 +19,7 @@ TMP=/data/local/tmp
 restart() { tv "am force-stop $PKG; am start -n $PKG/.MainActivity" >/dev/null; }
 
 if [ "${1:-}" = --reset ]; then
-  printf '%s\n' "content delete --uri $URI/config.json" "content delete --uri $URI/wallpaper.jpg" | tv_batch >/dev/null
+  printf '%s\n' "content delete --uri $URI/config.json" "content delete --uri $URI/wallpapers" | tv_batch >/dev/null
   restart; echo "Theme removed; the launcher is back to its built-in look."; exit 0
 fi
 
@@ -22,8 +29,9 @@ python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$THEME/config.json" 
   || { echo "$THEME/config.json is not valid JSON" >&2; exit 1; }
 
 # A theme that asks for a wallpaper but has none would silently show plain colour; say so instead.
-if grep -q '"wallpaper"[[:space:]]*:[[:space:]]*true' "$THEME/config.json" && [ ! -f "$THEME/wallpaper.jpg" ]; then
-  echo "WARNING: config.json asks for a wallpaper but $THEME/wallpaper.jpg is missing; pushing without one." >&2
+if grep -q '"wallpaper"[[:space:]]*:[[:space:]]*true' "$THEME/config.json" \
+   && [ ! -f "$THEME/wallpaper.jpg" ] && [ ! -d "$THEME/photos" ]; then
+  echo "WARNING: config.json asks for a wallpaper but $THEME has no photos/ folder or wallpaper.jpg; pushing without one." >&2
 fi
 
 send() {   # local file, theme file name
@@ -37,10 +45,17 @@ send() {   # local file, theme file name
 }
 
 send "$THEME/config.json" config.json
-if [ -f "$THEME/wallpaper.jpg" ]; then
+# Clear the old wallpaper set first, so a shorter slideshow leaves no leftovers behind.
+tv "content delete --uri $URI/wallpapers" >/dev/null || true
+if [ -d "$THEME/photos" ]; then
+  "$PY" -c 'import PIL' 2>/dev/null || { echo "Installing the photo tools (one time)..."; "$PY" -m pip install -q pillow pillow-heif; }
+  OUTDIR=$(mktemp -d)
+  trap 'rm -rf "$OUTDIR"' EXIT
+  echo "Preparing photos:"
+  "$PY" -I "$FIRE_DIR/prepare_wallpapers.py" "$THEME/photos" "$OUTDIR" "${BRIGHTNESS:-0.62}"
+  for f in $(ls "$OUTDIR" | sort -t- -k2 -n); do send "$OUTDIR/$f" "$f"; done
+elif [ -f "$THEME/wallpaper.jpg" ]; then
   send "$THEME/wallpaper.jpg" wallpaper.jpg
-else
-  tv "content delete --uri $URI/wallpaper.jpg" >/dev/null || true
 fi
 restart
 echo "Theme $(basename "$THEME") is on the TV. Undo with: fire/theme.sh --reset"
