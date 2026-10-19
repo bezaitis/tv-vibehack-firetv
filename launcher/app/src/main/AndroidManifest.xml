@@ -31,6 +31,7 @@
         <package android:name="com.xiaomi.mitv.settings" />
         <!-- Fire OS: FireHomeService reads Amazon's launcher activities to tell its home screen from Settings. -->
         <package android:name="com.amazon.tv.launcher" />
+        <package android:name="com.amazon.tv.settings.v2" />
     </queries>
 
     <application

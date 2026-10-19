@@ -37,6 +37,16 @@ public class FireHomeService extends AccessibilityService {
     private static final long DEBOUNCE_MS = 600;
     private long lastLaunch;
 
+    /**
+     * Set by the launcher just before it opens one of Amazon's own screens (Settings, Network), which can show
+     * Amazon's home for a moment on the way. Same process, so a static is enough.
+     */
+    private static volatile long suppressUntil;
+
+    static void suppress(long ms) {
+        suppressUntil = SystemClock.uptimeMillis() + ms;
+    }
+
     /** Activities of Amazon's launcher that answer HOME, and every activity it has; empty if unreadable. */
     private final Set<String> homeActivities = new HashSet<>();
     private final Set<String> launcherActivities = new HashSet<>();
@@ -86,6 +96,7 @@ public class FireHomeService extends AccessibilityService {
         if (pkg == null || !AMAZON_LAUNCHER.contentEquals(pkg)) return;
         if (!isAmazonHome(event.getClassName())) return;   // Settings, app library, profiles: leave them be
         long now = SystemClock.uptimeMillis();
+        if (now < suppressUntil) return;   // the launcher just opened an Amazon screen on purpose
         if (now - lastLaunch < DEBOUNCE_MS) return;
         lastLaunch = now;
         try {

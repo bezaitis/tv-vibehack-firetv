@@ -853,12 +853,31 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * On firmware with a standard settings handler the behaviour is unchanged.
      */
     private Intent systemIntent(String standardAction) {
+        Intent fire = fireSystemIntent(standardAction);
+        if (fire != null) return fire;
         Intent i = new Intent(standardAction);
         if (i.resolveActivity(getPackageManager()) != null) return i;
         i = new Intent().setComponent(new ComponentName(
                 "com.xiaomi.mitv.settings", "com.xiaomi.mitv.settings.entry.MainActivity"));
         if (i.resolveActivity(getPackageManager()) != null) return i;
         return new Intent(standardAction);   // nothing found: let open() show the can't-open toast
+    }
+
+    /**
+     * Fire OS answers the standard Settings intent with a stub that opens Amazon's home screen first and its Settings
+     * page a moment later, so FireHomeService would bounce it. Open the real screens directly instead: Amazon's main
+     * Settings page, and the Network page for Wi-Fi. Null when not on Fire OS or the screen isn't there.
+     */
+    private Intent fireSystemIntent(String standardAction) {
+        if (!AppAdapter.isFireOs(getPackageManager())) return null;
+        Intent i = null;
+        if (Settings.ACTION_SETTINGS.equals(standardAction)) {
+            i = new Intent("amazon.intent.action.MAINSETTINGS").addCategory("android.intent.category.MAINSETTINGS");
+        } else if (Settings.ACTION_WIFI_SETTINGS.equals(standardAction)) {
+            i = new Intent().setComponent(new ComponentName(
+                    "com.amazon.tv.settings.v2", "com.amazon.tv.settings.v2.tv.network.NetworkActivity"));
+        }
+        return i != null && i.resolveActivity(getPackageManager()) != null ? i : null;
     }
 
     /** Hides the Inputs pill when it would have nothing to list: streaming boxes have no HDMI-in, AV or tuner. */
@@ -899,6 +918,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void open(Intent i) {
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        // Fire OS: Amazon's system screens can pass through its home screen on the way; don't bounce the user back.
+        if (AppAdapter.isFireOs(getPackageManager())) FireHomeService.suppress(4000);
         try {
             startActivity(i);
         } catch (ActivityNotFoundException e) {
