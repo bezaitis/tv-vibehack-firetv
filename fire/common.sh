@@ -19,5 +19,6 @@ tv_batch() { "$PY" -I "$ROOT/tools/tv.py" --batch; }
 list_packages() {
   local list="${1:?usage: <script> <list file>}"
   [ -f "$list" ] || { echo "No such list: $list" >&2; exit 1; }
-  grep -vE '^\s*(#|$)' "$list" | sed -E 's/\s+#.*$//; s/\s+$//'
+  # POSIX classes only: macOS sed has no \s (it reads it as a literal "s").
+  grep -vE '^[[:space:]]*(#|$)' "$list" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//'
 }
