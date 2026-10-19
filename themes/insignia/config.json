@@ -1,0 +1,7 @@
+{
+  "dock_apps": ["com.netflix.ninja", "com.spotify.tv.android", "com.hbo.hbonow", "com.amazon.firetv.youtube"],
+  "hidden_apps": ["com.tubitv.ott"],
+  "live_tv_package": "com.amazon.tv.livetv",
+  "background_color": "#000000",
+  "wallpaper": true
+}

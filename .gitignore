@@ -12,3 +12,6 @@ backup/
 # fire/: local backups and a downloaded APK
 fire/backup-*.txt
 fire/*.apk
+
+# Personal wallpaper for the insignia theme: delivered privately, never committed
+themes/insignia/wallpaper.jpg
