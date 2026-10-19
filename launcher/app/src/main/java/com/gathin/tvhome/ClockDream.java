@@ -6,14 +6,23 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.service.dreams.DreamService;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.DisplayMetrics;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 /**
- * Screensaver: the launcher's thin clock and date on black, over a slow ambient glow.
- * Every minute the clock drifts to a new spot and the glow shifts colour, so nothing burns in.
- * No network, no images: cheap enough for a 1 GB TV.
+ * Screensaver: the launcher's thin clock and date over a slow ambient glow, or over the theme's wallpapers when it
+ * has any (one picture, or a slideshow that crossfades every wallpaper_seconds). Every minute the clock drifts to a
+ * new spot and the glow shifts colour, so nothing burns in. No network: cheap enough for a 1 GB TV.
  */
 public class ClockDream extends DreamService {
 
@@ -27,6 +36,20 @@ public class ClockDream extends DreamService {
     private GradientDrawable glow;
     private int colorIndex;
     private int glowColor;
+
+    /** Theme wallpapers behind the clock: bottom shows the current one, top fades the next one in. */
+    private final List<File> photos = new ArrayList<>();
+    private ImageView photoBottom, photoTop;
+    private int photoIndex;
+    private long photoMs;
+    private boolean photosRunning;
+
+    private final Runnable photoTick = new Runnable() {
+        @Override
+        public void run() {
+            nextPhoto();
+        }
+    };
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -54,6 +77,75 @@ public class ClockDream extends DreamService {
                 glow.setGradientRadius((r - l) * 0.55f));
         colorIndex = random.nextInt(PALETTE.length);
         setGlow(PALETTE[colorIndex]);
+        setupPhotos(ambient);
+    }
+
+    /** The theme's wallpapers, if it has any and hasn't switched them off; they replace the glow. */
+    private void setupPhotos(View ambient) {
+        Config cfg = Config.load(this);
+        photos.addAll(cfg.wallpapers);
+        photoMs = cfg.wallpaperSeconds * 1000L;
+        if (photos.isEmpty()) return;
+        photoIndex = random.nextInt(photos.size());   // don't always open on the same picture
+        Bitmap first = decode(photos.get(photoIndex));
+        if (first == null) return;
+        ViewGroup root = (ViewGroup) ambient.getParent();
+        photoBottom = newPhotoLayer();
+        photoBottom.setImageBitmap(first);
+        root.addView(photoBottom, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (photos.size() > 1) {
+            photoTop = newPhotoLayer();
+            photoTop.setAlpha(0f);
+            root.addView(photoTop, 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        ambient.setVisibility(View.GONE);
+    }
+
+    private ImageView newPhotoLayer() {
+        ImageView v = new ImageView(this);
+        v.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        return v;
+    }
+
+    private void nextPhoto() {
+        if (!photosRunning || photoTop == null) return;
+        final int next = (photoIndex + 1) % photos.size();
+        final File file = photos.get(next);
+        new Thread(() -> {
+            final Bitmap bmp = decode(file);
+            handler.post(() -> {
+                if (!photosRunning) return;
+                photoIndex = next;
+                if (bmp != null) {
+                    photoTop.setImageBitmap(bmp);
+                    photoTop.setAlpha(0f);
+                    photoTop.animate().alpha(1f).setDuration(2000).withEndAction(() -> {
+                        photoBottom.setImageBitmap(bmp);
+                        photoTop.setAlpha(0f);
+                        photoTop.setImageDrawable(null);
+                    }).start();
+                }
+                handler.postDelayed(photoTick, photoMs);
+            });
+        }, "dream-photo").start();
+    }
+
+    /** Downsampled to the screen in RGB_565; null for a bad or oversized picture, never a crash. */
+    private Bitmap decode(File file) {
+        try {
+            DisplayMetrics dm = getResources().getDisplayMetrics();
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(file.getPath(), opts);
+            int sample = 1;
+            while (opts.outWidth / (sample * 2) >= dm.widthPixels && opts.outHeight / (sample * 2) >= dm.heightPixels) sample *= 2;
+            opts.inJustDecodeBounds = false;
+            opts.inSampleSize = sample;
+            opts.inPreferredConfig = Bitmap.Config.RGB_565;
+            return BitmapFactory.decodeFile(file.getPath(), opts);
+        } catch (Exception | OutOfMemoryError e) {
+            return null;
+        }
     }
 
     @Override
@@ -65,17 +157,25 @@ public class ClockDream extends DreamService {
             content.animate().alpha(1f).setDuration(1200).start();
         });
         handler.postDelayed(tick, MOVE_MS);
+        if (photoTop != null) {
+            photosRunning = true;
+            handler.postDelayed(photoTick, photoMs);
+        }
     }
 
     @Override
     public void onDreamingStopped() {
         handler.removeCallbacks(tick);
+        photosRunning = false;
+        handler.removeCallbacks(photoTick);
         super.onDreamingStopped();
     }
 
     @Override
     public void onDetachedFromWindow() {
         handler.removeCallbacks(tick);
+        photosRunning = false;
+        handler.removeCallbacks(photoTick);
         super.onDetachedFromWindow();
     }
 
