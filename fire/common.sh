@@ -13,6 +13,21 @@ SVC=$PKG/.FireHomeService
 SVC_LONG=$PKG/$PKG.FireHomeService
 
 tv()       { "$PY" -I "$ROOT/tools/tv.py" "$@"; }
+
+# Switch the home watcher on, keeping any other accessibility service (e.g. VoiceView) enabled. Android drops an
+# app's accessibility services from the enabled list whenever the app is force-stopped or reinstalled, so every
+# script that does either calls this afterwards.
+enable_watcher() {
+  local cur new
+  cur=$(tv 'settings get secure enabled_accessibility_services' | tr -d '\r\n')
+  case "$cur" in
+    *FireHomeService*) new="$cur" ;;
+    null|"")           new="$SVC" ;;
+    *)                 new="$cur:$SVC" ;;
+  esac
+  printf '%s\n' "settings put secure enabled_accessibility_services '$new'" "settings put secure accessibility_enabled 1" \
+    | tv_batch >/dev/null
+}
 tv_batch() { "$PY" -I "$ROOT/tools/tv.py" --batch; }
 
 # Package names from a list file: comments and blank lines dropped, trailing "# note" stripped.

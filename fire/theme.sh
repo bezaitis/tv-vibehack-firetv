@@ -16,7 +16,8 @@ source "$(dirname "$0")/common.sh"
 URI=content://com.gathin.tvhome.theme
 TMP=/data/local/tmp
 
-restart() { tv "am force-stop $PKG; am start -n $PKG/.MainActivity" >/dev/null; }
+# Force-stopping the launcher also switches its home watcher off (Android does that), so turn it back on.
+restart() { tv "am force-stop $PKG" >/dev/null; enable_watcher; tv "am start -n $PKG/.MainActivity" >/dev/null; }
 
 if [ "${1:-}" = --reset ]; then
   printf '%s\n' "content delete --uri $URI/config.json" "content delete --uri $URI/wallpapers" | tv_batch >/dev/null

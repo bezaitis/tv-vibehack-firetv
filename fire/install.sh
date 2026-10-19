@@ -50,18 +50,10 @@ case "$OUT" in
 esac
 
 echo "== Turning on the home watcher"
-# Append to enabled_accessibility_services so any service you already use (e.g. VoiceView) stays on.
-CUR=$(tv 'settings get secure enabled_accessibility_services' | tr -d '\r\n')
-case "$CUR" in
-  *FireHomeService*) NEW="$CUR" ;;
-  null|"")           NEW="$SVC" ;;
-  *)                 NEW="$CUR:$SVC" ;;
-esac
+enable_watcher
 printf '%s\n' \
   "pm grant $PKG android.permission.ACCESS_FINE_LOCATION" \
   "cmd package compile -m speed -f $PKG" \
-  "settings put secure enabled_accessibility_services '$NEW'" \
-  "settings put secure accessibility_enabled 1" \
   "settings get secure enabled_accessibility_services" \
   "am start -W -n $PKG/.MainActivity" \
   | tv_batch | grep -E '^\$ settings get|FireHomeService|^(Status|Error)' || true
