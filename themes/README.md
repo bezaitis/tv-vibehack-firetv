@@ -26,6 +26,7 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `dock_apps` | list of package names | The dock row, in order; missing apps are skipped |
 | `hidden_apps` | list of package names | Never shown as tiles |
 | `grid_apps` | list of package names | The apps under the dock, in this order; anything not listed (and not in the dock) is left out. Missing apps are skipped |
+| `screensaver_style` | `bounce`, `photos` or `glow` | The Clock screensaver: the clock bouncing around a black screen, changing colour off every edge; the clock over the theme's wallpapers; or the clock over a drifting colour glow. Unset: photos when the theme has wallpapers, otherwise glow |
 | `wallpaper_seconds` | 5 to 3600 | With several wallpapers (`wallpaper-1.jpg`, `wallpaper-2.jpg`, ...), how long each stays up before the next crossfades in; 30 by default |
 | `live_tv_package`, `live_tv_action` | string | The Live TV app and, if it has no leanback entry, the action to start it with |
 | `source_panel_service`, `source_panel_action` | string | The TV's own source panel, for sets with no TvInputManager |

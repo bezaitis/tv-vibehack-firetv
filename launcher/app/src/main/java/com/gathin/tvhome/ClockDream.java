@@ -13,6 +13,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.TextView;
+import android.view.Choreographer;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -43,6 +45,23 @@ public class ClockDream extends DreamService {
     private int photoIndex;
     private long photoMs;
     private boolean photosRunning;
+
+    /** Bounce style: the clock glides diagonally, bouncing off the edges and changing colour on every bounce. */
+    private static final float BOUNCE_DP_PER_SEC = 90f;
+    private static final int[] BOUNCE_COLORS = {0xFFFF4D6D, 0xFF4DABFF, 0xFF6BE675, 0xFFFFD43B, 0xFFB57BFF, 0xFFFF9F43, 0xFF3BE8D8};
+    private boolean bounce;
+    private float bx, by, vx, vy;
+    private long lastFrameNs;
+    private int bounceColor;
+    private final List<TextView> clockTexts = new ArrayList<>();
+    private final List<Integer> clockAlphas = new ArrayList<>();
+    private final Choreographer.FrameCallback bounceFrame = new Choreographer.FrameCallback() {
+        @Override
+        public void doFrame(long now) {
+            stepBounce(now);
+            if (bounce) Choreographer.getInstance().postFrameCallback(this);
+        }
+    };
 
     private final Runnable photoTick = new Runnable() {
         @Override
@@ -77,7 +96,83 @@ public class ClockDream extends DreamService {
                 glow.setGradientRadius((r - l) * 0.55f));
         colorIndex = random.nextInt(PALETTE.length);
         setGlow(PALETTE[colorIndex]);
-        setupPhotos(ambient);
+        Config cfg = Config.load(this);
+        bounce = "bounce".equals(cfg.screensaverStyle);
+        if (bounce) {
+            ambient.setVisibility(View.GONE);   // plain black, like the classic bouncing-logo screensaver
+            collectTexts(content);
+            bounceColor = random.nextInt(BOUNCE_COLORS.length);
+            tintClock(BOUNCE_COLORS[bounceColor]);
+        } else if (!"glow".equals(cfg.screensaverStyle)) {
+            setupPhotos(ambient);
+        }
+    }
+
+    private void collectTexts(View v) {
+        if (v instanceof TextView) {
+            TextView t = (TextView) v;
+            clockTexts.add(t);
+            clockAlphas.add(t.getCurrentTextColor() >>> 24);   // keep each line's own transparency
+        } else if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) collectTexts(g.getChildAt(i));
+        }
+    }
+
+    private void tintClock(int color) {
+        for (int i = 0; i < clockTexts.size(); i++) {
+            clockTexts.get(i).setTextColor((clockAlphas.get(i) << 24) | (color & 0x00FFFFFF));
+        }
+    }
+
+    private void startBounce() {
+        View parent = (View) content.getParent();
+        float speed = BOUNCE_DP_PER_SEC * getResources().getDisplayMetrics().density;
+        bx = Math.max(0, parent.getWidth() - content.getWidth()) * random.nextFloat();
+        by = Math.max(0, parent.getHeight() - content.getHeight()) * random.nextFloat();
+        vx = random.nextBoolean() ? speed : -speed;
+        vy = random.nextBoolean() ? speed : -speed;
+        content.setX(bx);
+        content.setY(by);
+        lastFrameNs = 0;
+        Choreographer.getInstance().postFrameCallback(bounceFrame);
+    }
+
+    private void stepBounce(long now) {
+        if (lastFrameNs == 0) { lastFrameNs = now; return; }
+        float dt = Math.min(0.1f, (now - lastFrameNs) / 1e9f);   // a stalled frame never teleports the clock
+        lastFrameNs = now;
+        View parent = (View) content.getParent();
+        float maxX = Math.max(0, parent.getWidth() - content.getWidth());
+        float maxY = Math.max(0, parent.getHeight() - content.getHeight());
+        bx += vx * dt;
+        by += vy * dt;
+        boolean hitX = false, hitY = false;
+        if (bx <= 0) { bx = 0; vx = Math.abs(vx); hitX = true; }
+        else if (bx >= maxX) { bx = maxX; vx = -Math.abs(vx); hitX = true; }
+        if (by <= 0) { by = 0; vy = Math.abs(vy); hitY = true; }
+        else if (by >= maxY) { by = maxY; vy = -Math.abs(vy); hitY = true; }
+        content.setX(bx);
+        content.setY(by);
+        if (hitX || hitY) {
+            bounceColor = (bounceColor + 1 + random.nextInt(BOUNCE_COLORS.length - 1)) % BOUNCE_COLORS.length;
+            tintClock(BOUNCE_COLORS[bounceColor]);
+        }
+        if (hitX && hitY) celebrateCorner();
+    }
+
+    /** The moment everyone waits for: a perfect corner. A quick pop and a run through every colour. */
+    private void celebrateCorner() {
+        content.animate().cancel();
+        content.setAlpha(1f);   // in case the corner came during the opening fade-in
+        content.setScaleX(1f);
+        content.setScaleY(1f);
+        content.animate().scaleX(1.25f).scaleY(1.25f).setDuration(250).withEndAction(() ->
+                content.animate().scaleX(1f).scaleY(1f).setDuration(400).start()).start();
+        for (int i = 1; i <= BOUNCE_COLORS.length; i++) {
+            final int c = BOUNCE_COLORS[(bounceColor + i) % BOUNCE_COLORS.length];
+            handler.postDelayed(() -> tintClock(c), i * 120L);
+        }
     }
 
     /** The theme's wallpapers, if it has any and hasn't switched them off; they replace the glow. */
@@ -152,6 +247,13 @@ public class ClockDream extends DreamService {
     public void onDreamingStarted() {
         super.onDreamingStarted();
         content.setAlpha(0f);
+        if (bounce) {
+            content.post(() -> {
+                startBounce();
+                content.animate().alpha(1f).setDuration(1200).start();
+            });
+            return;
+        }
         content.post(() -> {
             placeClock();
             content.animate().alpha(1f).setDuration(1200).start();
@@ -165,6 +267,9 @@ public class ClockDream extends DreamService {
 
     @Override
     public void onDreamingStopped() {
+        bounce = false;
+        Choreographer.getInstance().removeFrameCallback(bounceFrame);
+        handler.removeCallbacksAndMessages(null);
         handler.removeCallbacks(tick);
         photosRunning = false;
         handler.removeCallbacks(photoTick);
@@ -173,6 +278,9 @@ public class ClockDream extends DreamService {
 
     @Override
     public void onDetachedFromWindow() {
+        bounce = false;
+        Choreographer.getInstance().removeFrameCallback(bounceFrame);
+        handler.removeCallbacksAndMessages(null);
         handler.removeCallbacks(tick);
         photosRunning = false;
         handler.removeCallbacks(photoTick);

@@ -3,5 +3,6 @@
   "hidden_apps": ["com.tubitv.ott"],
   "live_tv_package": "com.amazon.tv.livetv",
   "background_color": "#000000",
-  "wallpaper": true
+  "wallpaper": true,
+  "screensaver_style": "bounce"
 }

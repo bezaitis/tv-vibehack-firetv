@@ -39,6 +39,8 @@ final class Config {
     final List<String> hiddenApps;
     /** Theme key grid_apps: when set, the only apps shown under the dock, in this order; empty means all. */
     final List<String> gridApps;
+    /** Theme key screensaver_style: "bounce", "photos" or "glow"; empty means photos when there are any, else glow. */
+    final String screensaverStyle;
     final String liveTvPackage;
     final String liveTvAction;
     final String sourcePanelService;
@@ -66,7 +68,7 @@ final class Config {
                    int columns, int rowsBelowDock,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
                    boolean showHomeSettingsShortcut, int backgroundColor,
-                   List<File> wallpapers, int wallpaperSeconds, List<String> gridApps, boolean overlayApplied) {
+                   List<File> wallpapers, int wallpaperSeconds, List<String> gridApps, String screensaverStyle, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
         this.liveTvPackage = liveTvPackage;
@@ -85,6 +87,7 @@ final class Config {
         this.wallpapers = Collections.unmodifiableList(wallpapers);
         this.wallpaperSeconds = wallpaperSeconds;
         this.gridApps = Collections.unmodifiableList(gridApps);
+        this.screensaverStyle = screensaverStyle;
         this.overlayApplied = overlayApplied;
     }
 
@@ -112,6 +115,7 @@ final class Config {
         int background = 0xFF000000;
         int wallpaperSeconds = DEFAULT_WALLPAPER_SECONDS;
         List<String> gridApps = new ArrayList<>();
+        String screensaverStyle = "";
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -122,6 +126,7 @@ final class Config {
             dock = stringList(json, "dock_apps", dock);
             hidden = stringList(json, "hidden_apps", hidden);
             gridApps = stringList(json, "grid_apps", gridApps);
+            screensaverStyle = string(json, "screensaver_style", screensaverStyle).toLowerCase(java.util.Locale.ROOT);
             liveTv = string(json, "live_tv_package", liveTv);
             liveTvAction = string(json, "live_tv_action", liveTvAction);
             panelService = string(json, "source_panel_service", panelService);
@@ -143,7 +148,7 @@ final class Config {
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), shamsi, moduleCards, reducedMotion,
-                vpn, homeSettings, background, wallpapers, wallpaperSeconds, gridApps, applied);
+                vpn, homeSettings, background, wallpapers, wallpaperSeconds, gridApps, screensaverStyle, applied);
     }
 
     /** wallpaper-N.jpg files in number order if there are any, otherwise wallpaper.jpg on its own. */
