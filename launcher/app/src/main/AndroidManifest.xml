@@ -29,6 +29,8 @@
         </intent>
         <!-- China-market MIUI TV firmware: the Settings and Wi-Fi pills fall back to Xiaomi's settings app. -->
         <package android:name="com.xiaomi.mitv.settings" />
+        <!-- Fire OS: FireHomeService reads Amazon's launcher activities to tell its home screen from Settings. -->
+        <package android:name="com.amazon.tv.launcher" />
     </queries>
 
     <application
