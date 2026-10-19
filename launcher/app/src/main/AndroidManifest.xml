@@ -109,6 +109,15 @@
                 android:resource="@xml/fire_home_service" />
         </service>
 
+        <!-- adb-only theme writer for Fire OS 8, where the shell cannot write to Android/data. See ThemeProvider
+             and fire/theme.sh. WRITE_SECURE_SETTINGS: held by the adb shell, not grantable to ordinary apps. -->
+        <provider
+            android:name=".ThemeProvider"
+            android:authorities="com.gathin.tvhome.theme"
+            android:exported="true"
+            android:readPermission="android.permission.WRITE_SECURE_SETTINGS"
+            android:writePermission="android.permission.WRITE_SECURE_SETTINGS" />
+
         <!-- The remote's Input button (KEYCODE_TV) opens the input switcher; see InputKeyService. -->
         <service
             android:name=".InputKeyService"

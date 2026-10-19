@@ -63,6 +63,20 @@ fire/install.sh
 
 Press Home on the remote. Amazon's home flashes for a moment, then this one comes up.
 
+## Themes
+
+Dock apps, hidden apps, columns, background colour and wallpaper are set by a theme (keys in
+[`themes/README.md`](../themes/README.md)). On Fire TV, push one with `fire/theme.sh`, not `tools/theme.sh`: Fire OS
+8 stops adb from writing to the launcher's storage, so this script hands the files over through the launcher itself.
+
+```bash
+fire/theme.sh themes/insignia     # apply
+fire/theme.sh --reset             # back to the built-in look
+```
+
+Reinstalling the launcher from a different GitHub build removes the old copy first, and its theme with it: run
+`fire/theme.sh` again afterwards.
+
 ## Undo
 
 ```bash

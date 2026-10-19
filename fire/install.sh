@@ -30,14 +30,22 @@ case "$(tv 'pm has-feature amazon.hardware.fire_tv' | tr -d '\r')" in
   *) echo "ERROR: this TV does not report as a Fire TV. For Android TV / Google TV use launcher/build-and-install.sh." >&2; exit 1 ;;
 esac
 
-"$PY" -I "$ROOT/tools/b64push.py" "$APK" /data/local/tmp/tvhome.apk
-OUT=$(tv 'pm install -r /data/local/tmp/tvhome.apk; rm -f /data/local/tmp/tvhome.apk' | tr -d '\r')
+install_apk() {
+  "$PY" -I "$ROOT/tools/b64push.py" "$APK" /data/local/tmp/tvhome.apk
+  tv 'pm install -r /data/local/tmp/tvhome.apk; rm -f /data/local/tmp/tvhome.apk' | tr -d '\r'
+}
+OUT=$(install_apk)
+case "$OUT" in
+  *UPDATE_INCOMPATIBLE*|*"signatures do not match"*)
+    # Each GitHub build signs with its own throwaway key, so an update from a different build cannot install over
+    # the old one. Remove the old copy and install again; its theme goes with it, so re-run fire/theme.sh after.
+    echo "The installed copy is from a different build; replacing it (re-apply your theme afterwards)."
+    tv "pm uninstall $PKG" >/dev/null
+    OUT=$(install_apk) ;;
+esac
 echo "$OUT"
 case "$OUT" in
   *Success*) ;;
-  *UPDATE_INCOMPATIBLE*|*"signatures do not match"*)
-    echo "ERROR: a copy signed with a different key is already installed (each GitHub build has its own key)." >&2
-    echo "Remove it first:  TV_HOST=$TV_HOST tools/venv/bin/python tools/tv.py 'pm uninstall $PKG'   then run this again." >&2; exit 1 ;;
   *) echo "ERROR: install failed; nothing else was changed." >&2; exit 1 ;;
 esac
 
