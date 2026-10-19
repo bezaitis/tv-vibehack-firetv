@@ -1,0 +1,80 @@
+# Insignia 50" F50 QLED 4K Fire TV (NS-50F501NA26), Fire OS 8.8.1.0 (Android 11), Fire TV home 7300121.1
+# Built from the two existing Fire TV lists in examples/ (Fire OS 7) and Fire TV Glass's list (tested on Fire OS 8),
+# trimmed to this owner's choices. Not yet run on this exact set: fire/check.sh shows which lines exist on the TV
+# before anything changes.
+#
+# Apply:  TV_HOST=<tv ip> fire/debloat.sh fire/insignia-ns50f501na26.txt
+# Undo:   TV_HOST=<tv ip> fire/restore.sh fire/insignia-ns50f501na26.txt
+# Undo one package:  TV_HOST=<tv ip> tools/tv.py 'pm enable --user 0 <package>'
+# Everything is DISABLED for user 0 with pm disable-user, never uninstalled. Delete or comment out a line to keep it.
+#
+# KEPT ON PURPOSE (not in this list, never touched):
+#   Amazon's home launcher (com.amazon.tv.launcher, com.amazon.firehomestarter): protected, and fire/ only covers it
+#   Settings, Quick Settings, Live TV and the HDMI inputs (com.amazon.tv.settings.v2, com.amazon.tv.quicksettings,
+#     com.amazon.tv.livetv), Appstore (com.amazon.venezia, com.amazon.tigris), keyboard, remote and Bluetooth
+#   Prime Video (com.amazon.firebat, com.amazon.avod)
+#   Alexa voice search on the remote: com.amazon.vizzini, com.amazon.alexamediaplayer.runtime.ftv,
+#     com.amazon.alexadirectivebrokerservice, com.amazon.alexa.datastore.app, com.amazon.aca, com.amazon.cardinal,
+#     com.amazon.aria, com.ivona.* (Alexa's voice), com.amazon.tcomm (Amazon's device messaging channel)
+#   Phone casting (com.amazon.dialservice, com.amazon.awvflingreceiver, com.amazon.whisperplay.*,
+#     com.amazon.whisperlink.*), AirPlay (com.apple.airplay.amazon.airplay), screen mirroring (com.amazon.cast.sink)
+#   Fire OS updates (com.amazon.device.software.ota*, com.amazon.tv.forcedotaupdater.v2, com.amazon.tv.easyupgrade).
+#     An update can switch disabled packages back on: run fire/debloat.sh again after one.
+#   Streaming-app sign-in helper (com.amazon.tv.ottssocompanionapp) and com.amazon.providers.contentsupport,
+#     which other lists disable; left on here so app sign-ins and Prime Video are not at risk.
+#   com.amazon.logan (accessibility), which the new home screen's watcher depends on.
+#
+# PROTECTED BY FIRE OS (pm disable-user is refused without root, so they keep running; listed for the record):
+#   com.amazon.device.crashmanager, com.amazon.device.logmanager, com.amazon.device.metrics,
+#   com.fireos.usagestats.proxy, com.amazon.ftvads.deeplinking, com.amazon.tv.csapp
+#
+# What no list can remove: the sponsored banner on Amazon's home is fetched by the launcher itself. With the new
+# home screen in front you rarely see it; an ad-blocking DNS on your router can also block *.amazon-adsystem.com.
+# Also turn off Featured Content autoplay and the Privacy Settings toggles under Settings > Preferences.
+
+# Telemetry, viewing-habit tracking and analytics
+com.amazon.tv.acr                          # Automatic Content Recognition: fingerprints what is on screen, HDMI included
+com.amazon.hybridadidservice               # advertising ID
+com.amazon.device.telemetry.emitter
+com.amazon.dp.logger
+com.amazon.neo.minerva                     # Minerva metrics
+com.amazon.neo.minerva.logcat
+com.amazon.perfcollection
+com.amazon.wirelessmetrics.service
+com.amazon.tv.fw.metrics
+com.amazon.connectivitydiag
+com.amazon.tv.developer.dataservice
+
+# Ads, sponsored content and promo surfaces
+com.amazon.media.recommendations           # recommendation rows
+com.amazon.sneakpeek                       # autoplaying previews
+com.amazon.kso.blackbird                   # sponsored screensaver content
+com.amazon.shoptv.client                   # Amazon Shopping on TV
+com.amazon.shoptv.firetv.client
+com.amazon.minitv.android.app              # Amazon miniTV
+com.amazon.tv.ftvambient                   # Ambient Experience
+com.amazon.tv.democontent.provider         # retail-store demo videos
+com.amazon.tv.earlyaccess
+com.amazon.tv.releasenotes
+
+# Background services with no visible feature
+com.amazon.sharingservice.android.client.proxy
+com.amazon.ods.kindleconnect               # Kindle connector
+com.amazon.wifilocker                      # uploads your Wi-Fi passwords to Amazon's cloud
+com.android.printservice.recommendation
+com.android.protips
+
+# Preloaded apps you don't use
+com.amazon.storm.lightning.tutorial        # tutorials
+com.amazon.tmm.tutorial
+com.amazon.tv.website_launcher
+com.amazon.gamehub                         # Luna / game hub
+com.amazon.tahoe                           # Amazon Kids
+com.amazon.bueller.music                   # Amazon Music
+com.amazon.bueller.photos                  # Amazon Photos
+
+# Alexa extras (voice search on the remote stays on; see KEPT above)
+com.amazon.tv.alexanotifications           # Alexa notification banners
+com.amazon.tv.alexaalerts                  # Alexa alarms and reminders on the TV
+com.amazon.audiohome                       # Alexa Home Theater (Echo speakers as TV audio)
+com.amazon.tv.mattercohost                 # Matter smart-home hub
