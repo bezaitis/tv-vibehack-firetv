@@ -74,6 +74,9 @@ fire/theme.sh themes/insignia     # apply
 fire/theme.sh --reset             # back to the built-in look
 ```
 
+`fire/apps.sh` lists every app on the TV by name with the package name a theme needs, for `dock_apps`,
+`grid_apps` (the apps under the dock, in your order) and `hidden_apps`.
+
 Reinstalling the launcher from a different GitHub build removes the old copy first, and its theme with it: run
 `fire/theme.sh` again afterwards.
 

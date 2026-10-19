@@ -37,6 +37,8 @@ final class Config {
 
     final List<String> dockApps;
     final List<String> hiddenApps;
+    /** Theme key grid_apps: when set, the only apps shown under the dock, in this order; empty means all. */
+    final List<String> gridApps;
     final String liveTvPackage;
     final String liveTvAction;
     final String sourcePanelService;
@@ -64,7 +66,7 @@ final class Config {
                    int columns, int rowsBelowDock,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
                    boolean showHomeSettingsShortcut, int backgroundColor,
-                   List<File> wallpapers, int wallpaperSeconds, boolean overlayApplied) {
+                   List<File> wallpapers, int wallpaperSeconds, List<String> gridApps, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
         this.liveTvPackage = liveTvPackage;
@@ -82,6 +84,7 @@ final class Config {
         this.backgroundColor = backgroundColor;
         this.wallpapers = Collections.unmodifiableList(wallpapers);
         this.wallpaperSeconds = wallpaperSeconds;
+        this.gridApps = Collections.unmodifiableList(gridApps);
         this.overlayApplied = overlayApplied;
     }
 
@@ -108,6 +111,7 @@ final class Config {
         boolean homeSettings = res.getBoolean(R.bool.show_home_settings_shortcut);
         int background = 0xFF000000;
         int wallpaperSeconds = DEFAULT_WALLPAPER_SECONDS;
+        List<String> gridApps = new ArrayList<>();
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -117,6 +121,7 @@ final class Config {
             applied = true;
             dock = stringList(json, "dock_apps", dock);
             hidden = stringList(json, "hidden_apps", hidden);
+            gridApps = stringList(json, "grid_apps", gridApps);
             liveTv = string(json, "live_tv_package", liveTv);
             liveTvAction = string(json, "live_tv_action", liveTvAction);
             panelService = string(json, "source_panel_service", panelService);
@@ -138,7 +143,7 @@ final class Config {
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), shamsi, moduleCards, reducedMotion,
-                vpn, homeSettings, background, wallpapers, wallpaperSeconds, applied);
+                vpn, homeSettings, background, wallpapers, wallpaperSeconds, gridApps, applied);
     }
 
     /** wallpaper-N.jpg files in number order if there are any, otherwise wallpaper.jpg on its own. */
