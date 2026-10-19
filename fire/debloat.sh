@@ -10,17 +10,23 @@ LIST="${1:?usage: debloat.sh <list file>}"
 OUT=$(list_packages "$LIST" | sed 's/^/pm disable-user --user 0 /' | tv_batch | tr -d '\r')
 
 ok=0; protected=0; missing=0
-pkg=""
+# Fire OS answers each command with one or more lines; classify each package once, from all of its lines.
+report() {
+  [ -n "$pkg" ] || return 0
+  case "$block" in
+    *"new state: disabled"*)            printf '  %-48s disabled\n' "$pkg"; ok=$((ok + 1)) ;;
+    *[Uu]nknown\ package*|*"not found"*) printf '  %-48s not on this TV\n' "$pkg"; missing=$((missing + 1)) ;;
+    *)                                  printf '  %-48s refused by Fire OS (protected)\n' "$pkg"; protected=$((protected + 1)) ;;
+  esac
+}
+pkg=""; block=""
 while IFS= read -r line; do
   case "$line" in
-    '$ pm disable-user --user 0 '*) pkg=${line#'$ pm disable-user --user 0 '} ;;
-    *"new state: disabled"*)       printf '  %-48s disabled\n' "$pkg"; ok=$((ok + 1)) ;;
-    *[Uu]nknown\ package*|*"not found"*)
-                                   printf '  %-48s not on this TV\n' "$pkg"; missing=$((missing + 1)) ;;
-    *[Ee]xception*|*[Ee]rror*|*[Pp]rotected*|*"Cannot disable"*)
-                                   printf '  %-48s refused by Fire OS (protected)\n' "$pkg"; protected=$((protected + 1)) ;;
+    '$ pm disable-user --user 0 '*) report; pkg=${line#'$ pm disable-user --user 0 '}; block="" ;;
+    *) block="$block $line" ;;
   esac
 done <<< "$OUT"
+report
 
 echo
 echo "$ok disabled, $protected refused by Fire OS, $missing not on this TV."
